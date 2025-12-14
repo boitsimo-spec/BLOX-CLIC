@@ -1,25 +1,76 @@
 import React, { useState } from 'react';
-import { ShieldAlert, Zap, Plus, Trash2, Clock, Gem, Megaphone, Skull, Ghost, Gift, Snowflake, Crown, Flame, Star, Biohazard } from 'lucide-react';
+import { ShieldAlert, Zap, Plus, Trash2, Clock, Gem, Megaphone, Skull, Ghost, Gift, Snowflake, Crown, Flame, Star, Biohazard, Lock, ArrowRight, BrainCircuit } from 'lucide-react';
 import { GameEvent } from '../types';
 
 interface AdminPanelProps {
+  isAdmin: boolean;
+  onAuthorize: (key: string) => void;
   onAddCurrency: (amount: number) => void;
   onAddGems: (amount: number) => void;
+  onAddTokens: (amount: number) => void;
   onTriggerEvent: (event: Omit<GameEvent, 'id' | 'endTime'>) => void;
   onReset: () => void;
   onAnnounce: (text: string) => void;
+  onForceUpdate?: () => void; // New optional prop
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ onAddCurrency, onAddGems, onTriggerEvent, onReset, onAnnounce }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ isAdmin, onAuthorize, onAddCurrency, onAddGems, onAddTokens, onTriggerEvent, onReset, onAnnounce, onForceUpdate }) => {
   const [amount, setAmount] = useState(100000);
   const [announceText, setAnnounceText] = useState('');
   const [activeTab, setActiveTab] = useState<'resources' | 'events' | 'abuse'>('resources');
+  const [inputKey, setInputKey] = useState('');
+  const [error, setError] = useState('');
 
   const handleAnnounce = () => {
       if(!announceText.trim()) return;
       onAnnounce(announceText);
       setAnnounceText('');
   };
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if(inputKey === 'key') {
+      onAuthorize(inputKey);
+    } else {
+      setError('Invalid Access Key');
+      setInputKey('');
+    }
+  };
+
+  if (!isAdmin) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-6 space-y-6 animate-fade-in">
+        <div className="bg-red-900/20 p-6 rounded-full border border-red-500/50 shadow-[0_0_50px_rgba(220,38,38,0.2)]">
+          <Lock size={64} className="text-red-500" />
+        </div>
+        <div className="text-center">
+          <h2 className="text-2xl font-game font-bold text-red-500 uppercase tracking-widest mb-2">Restricted Area</h2>
+          <p className="text-gray-400 text-sm">Enter the Owner Key to access the control panel.</p>
+        </div>
+        
+        <form onSubmit={handleLogin} className="w-full max-w-xs space-y-4">
+          <input 
+            type="password" 
+            value={inputKey}
+            onChange={(e) => {
+              setInputKey(e.target.value);
+              setError('');
+            }}
+            placeholder="Enter Key..."
+            className="w-full bg-black/40 border border-red-900/50 rounded-xl px-4 py-3 text-center text-white font-game focus:outline-none focus:border-red-500 transition-all"
+            autoFocus
+          />
+          {error && <p className="text-red-400 text-xs font-bold text-center animate-bounce">{error}</p>}
+          <button 
+            type="submit"
+            className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl shadow-lg border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+          >
+            UNLOCK <ArrowRight size={16} />
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   const triggerAllEvents = () => {
       onTriggerEvent({ name: '2x Studs Frenzy', type: 'currency', multiplier: 2, durationSeconds: 60 });
@@ -33,7 +84,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onAddCurrency, onAddGems
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-2 mb-4">
         <ShieldAlert className="text-red-500" size={28} />
         <h2 className="text-2xl font-game font-bold text-red-500 uppercase tracking-widest">Panel Owner</h2>
@@ -65,7 +116,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onAddCurrency, onAddGems
                     className="w-full bg-black/40 border border-white/10 rounded p-2 text-white font-mono text-sm"
                 />
             </div>
-            <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="grid grid-cols-3 gap-2 mt-4">
                 <button 
                     onClick={() => onAddCurrency(amount)}
                     className="bg-blue-900/50 hover:bg-blue-800/50 border border-blue-500/30 text-blue-200 p-3 rounded-lg flex items-center justify-center gap-2 text-xs font-bold transition-colors"
@@ -77,6 +128,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onAddCurrency, onAddGems
                     className="bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-500/30 text-cyan-200 p-3 rounded-lg flex items-center justify-center gap-2 text-xs font-bold transition-colors"
                 >
                     <Plus size={14} /> Add Gems
+                </button>
+                <button 
+                    onClick={() => onAddTokens(amount)}
+                    className="bg-yellow-900/50 hover:bg-yellow-800/50 border border-yellow-500/30 text-yellow-200 p-3 rounded-lg flex items-center justify-center gap-2 text-xs font-bold transition-colors"
+                >
+                    <Plus size={14} /> Add Tokens
                 </button>
             </div>
             <div className="mt-4 pt-4 border-t border-white/5">
@@ -201,6 +258,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onAddCurrency, onAddGems
                   >
                       ❄️ START WINTER BLIZZARD ❄️
                   </button>
+
+                   {onForceUpdate && (
+                      <button 
+                          onClick={onForceUpdate}
+                          className="w-full bg-pink-600 hover:bg-pink-500 text-white p-3 rounded-lg font-bold font-game flex justify-center items-center gap-2 border-b-4 border-pink-800 active:border-b-0 active:translate-y-1 animate-pulse"
+                      >
+                          <BrainCircuit size={18} /> FORCE BRAINROT UPDATE
+                      </button>
+                  )}
               </div>
           </div>
       )}

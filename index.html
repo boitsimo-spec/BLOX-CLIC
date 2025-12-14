@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Blox Clicker Simulator</title>
+    <link rel="manifest" href="/manifest.json" />
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -67,6 +68,22 @@
         75% { transform: translateY(75vh) rotate(270deg) translateX(10px); }
         100% { transform: translateY(110vh) rotate(360deg) translateX(0px); }
       }
+
+      /* NEW EVENT ANIMATIONS */
+      @keyframes float {
+        0% { transform: translateY(110vh) rotate(0deg) scale(0.8); opacity: 0; }
+        10% { opacity: 0.8; }
+        90% { opacity: 0.8; }
+        100% { transform: translateY(-10vh) rotate(360deg) scale(1.2); opacity: 0; }
+      }
+
+      @keyframes float-slow {
+        0% { transform: translateY(110vh) translateX(0); opacity: 0; }
+        10% { opacity: 0.7; }
+        50% { transform: translateY(50vh) translateX(50px); }
+        90% { opacity: 0.7; }
+        100% { transform: translateY(-10vh) translateX(-50px); opacity: 0; }
+      }
     </style>
   <script type="importmap">
 {
@@ -78,6 +95,15 @@
     "lucide-react": "https://esm.sh/lucide-react@^0.561.0"
   }
 }
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => console.log('SW Registered'))
+        .catch(err => console.log('SW Failed', err));
+    });
+  }
 </script>
 </head>
   <body>

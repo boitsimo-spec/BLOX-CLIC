@@ -1,0 +1,22 @@
+{
+  "name": "Blox Clicker: Brainrot Update",
+  "short_name": "BloxSim",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#3b82f6",
+  "description": "Click, Hatch, and Collect in the biggest update ever! Features Offline Play.",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3408/3408506.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3408/3408506.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

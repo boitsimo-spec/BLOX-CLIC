@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { GameState, Upgrade, Pet, GamePasses as GamePassesType, GameEvent, RankDefinition, ChatMessage } from './types';
+import { GameState, Upgrade, Pet, GamePasses as GamePassesType, GameEvent, RankDefinition, ChatMessage, Island } from './types';
 import { ChatBox } from './components/ChatBox';
 import { generatePet } from './services/geminiService';
 import { PetCard } from './components/PetCard';
@@ -8,7 +8,15 @@ import { GamePasses } from './components/GamePasses';
 import { AdminPanel } from './components/AdminPanel';
 import { ProgressTab } from './components/ProgressTab';
 import { UsernameModal } from './components/UsernameModal';
-import { Zap, ShoppingCart, Award, MousePointer2, Skull, MessageSquare, Shield, Gem, User, Save, ListTodo, Timer, Snowflake, Trophy, Megaphone, Settings, Key, LogOut } from 'lucide-react';
+import { EventEffects } from './components/EventEffects';
+import { Leaderboard } from './components/Leaderboard';
+import { BossFight } from './components/BossFight';
+import { IslandSelector, ISLANDS_DATA } from './components/IslandSelector';
+import { UpdateLog } from './components/UpdateLog';
+import { TokenShop } from './components/TokenShop';
+import { LuckyBlockTab } from './components/LuckyBlockTab';
+import { PetIndex } from './components/PetIndex';
+import { Zap, ShoppingCart, Award, MousePointer2, Skull, MessageSquare, Shield, Gem, User, Save, ListTodo, Timer, Snowflake, Trophy, Megaphone, Settings, Key, LogOut, Gift, BarChart3, Sword, Map, Bell, Coins, BrainCircuit, Box, Download, Book, Sparkles, MonitorDown } from 'lucide-react';
 
 const INITIAL_UPGRADES: Upgrade[] = [
   { id: 'click1', name: 'Stronger Click', baseCost: 15, costMultiplier: 1.5, powerIncrease: 1, count: 0, type: 'click', icon: '👆' },
@@ -16,6 +24,8 @@ const INITIAL_UPGRADES: Upgrade[] = [
   { id: 'click2', name: 'Super Gloves', baseCost: 250, costMultiplier: 1.6, powerIncrease: 5, count: 0, type: 'click', icon: '🥊' },
   { id: 'auto2', name: 'Pro Auto Clicker', baseCost: 1000, costMultiplier: 1.5, powerIncrease: 10, count: 0, type: 'auto', icon: '👨‍💻' },
   { id: 'click3', name: 'Godly Touch', baseCost: 5000, costMultiplier: 1.8, powerIncrease: 25, count: 0, type: 'click', icon: '⚡' },
+  { id: 'click_limited', name: 'Mewing Streak', baseCost: 500000, costMultiplier: 2.5, powerIncrease: 5000, count: 0, type: 'click', icon: '🤫' }, // Limited Clicker
+  { id: 'click_sigma', name: 'Sigma Chad Clicker', baseCost: 10000000, costMultiplier: 3.0, powerIncrease: 50000, count: 0, type: 'click', icon: '🗿' }, // NEW CLICKER
 ];
 
 const INITIAL_GAMEPASSES: GamePassesType = {
@@ -29,13 +39,19 @@ const INITIAL_GAMEPASSES: GamePassesType = {
 const INITIAL_GAME_STATE: GameState = {
   username: undefined,
   password: undefined,
+  email: undefined,
   isAdmin: false,
+  tags: [],
   currency: 0,
   gems: 0,
+  tokens: 0,
+  aura: 0, // NEW AURA CURRENCY
   rebirths: 0,
   clickPower: 1,
   autoPower: 0,
   pets: [],
+  discoveredPets: [], // NEW INDEX TRACKING
+  currentIslandId: 'spawn',
   upgrades: INITIAL_UPGRADES,
   totalClicks: 0,
   gamepasses: INITIAL_GAMEPASSES,
@@ -43,7 +59,7 @@ const INITIAL_GAME_STATE: GameState = {
   claimedAchievementIds: []
 };
 
-const SAVE_KEY = 'bloxSim_save_v1';
+const SAVE_KEY = 'bloxSim_save_v2';
 
 const RANKS: RankDefinition[] = [
   { name: "Noob", threshold: 0, multiplier: 1, color: "text-gray-400" },
@@ -52,12 +68,41 @@ const RANKS: RankDefinition[] = [
   { name: "Elite", threshold: 50000, multiplier: 2, color: "text-purple-400" },
   { name: "Hacker", threshold: 250000, multiplier: 3.5, color: "text-red-400" },
   { name: "God", threshold: 1000000, multiplier: 5, color: "text-yellow-400" },
-  { name: "Developer", threshold: 10000000, multiplier: 10, color: "text-cyan-400" },
+  { name: "Brainrot", threshold: 5000000, multiplier: 8, color: "text-pink-500" }, 
+  { name: "Sigma", threshold: 25000000, multiplier: 15, color: "text-gray-200" }, // Limited Rank
+  { name: "Developer", threshold: 100000000, multiplier: 20, color: "text-cyan-400" },
 ];
 
-type TabType = 'upgrades' | 'pets' | 'eggs' | 'player' | 'progress' | 'gamepasses' | 'chat' | 'admin' | 'settings';
+type TabType = 'upgrades' | 'pets' | 'index' | 'eggs' | 'luckyblocks' | 'fight' | 'islands' | 'gameshop' | 'progress' | 'player' | 'leaderboard' | 'gamepasses' | 'chat' | 'updates' | 'admin' | 'settings';
 
 export default function App() {
+  // Timer Logic
+  const [updateTargetTime, setUpdateTargetTime] = useState(() => {
+      // Use localstorage for timer so it persists or resets properly
+      const savedTime = localStorage.getItem('blox_update_timer');
+      return savedTime ? parseInt(savedTime) : Date.now() + 2 * 60 * 60 * 1000;
+  });
+  const [timeRemaining, setTimeRemaining] = useState(2 * 60 * 60 * 1000);
+
+  useEffect(() => {
+    localStorage.setItem('blox_update_timer', updateTargetTime.toString());
+    const timer = setInterval(() => {
+        const left = Math.max(0, updateTargetTime - Date.now());
+        setTimeRemaining(left);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [updateTargetTime]);
+
+  const formatTime = (ms: number) => {
+    if (ms <= 0) return "LIVE NOW";
+    const h = Math.floor(ms / (1000 * 60 * 60));
+    const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((ms % (1000 * 60)) / 1000);
+    return `${h}h ${m}m ${s}s`;
+  };
+
+  const isUpdateLive = timeRemaining <= 0;
+
   // Game State with Load Logic
   const [gameState, setGameState] = useState<GameState>(() => {
     try {
@@ -78,7 +123,12 @@ export default function App() {
           ...parsed,
           upgrades: mergedUpgrades,
           gamepasses: mergedGamepasses,
+          tokens: parsed.tokens || 0,
+          aura: parsed.aura || 0, // NEW
+          currentIslandId: parsed.currentIslandId || 'spawn',
+          tags: parsed.tags || [],
           pets: Array.isArray(parsed.pets) ? parsed.pets : [],
+          discoveredPets: Array.isArray(parsed.discoveredPets) ? parsed.discoveredPets : (parsed.pets || []), // Init discovered with current pets
           activeEvents: parsed.activeEvents || [],
           claimedAchievementIds: parsed.claimedAchievementIds || []
         };
@@ -93,7 +143,42 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('upgrades');
   const [isHatching, setIsHatching] = useState(false);
   const [announcement, setAnnouncement] = useState<string | null>(null);
-  const [authCode, setAuthCode] = useState('');
+  const [transferTarget, setTransferTarget] = useState('');
+  
+  // PWA Install State
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  // Notify handler
+  const notify = (text: string, color: string = 'text-white') => {
+    const id = Date.now().toString() + Math.random();
+    setNotifications(prev => [...prev, { id, text, color }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 3000);
+  };
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      notify("Install App available in Settings!", "text-green-400");
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) {
+      notify("Install not supported or already installed!", "text-yellow-400");
+      return;
+    }
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+      notify("App Installed!", "text-green-400");
+    }
+  };
   
   // Chat State lifted to App
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -145,6 +230,7 @@ export default function App() {
   // Calculate Multipliers
   const petMultiplier = gameState.pets.reduce((acc, pet) => acc + pet.multiplier, 0) || 1;
   const rebirthMultiplier = (gameState.rebirths * 0.5) + 1;
+  const islandMultiplier = ISLANDS_DATA.find(i => i.id === gameState.currentIslandId)?.multiplier || 1;
   
   const gamepassMultiplier = (gameState.gamepasses.vip ? 2 : 1) * 
                              (gameState.gamepasses.serverLuck ? 10 : 1) *
@@ -171,7 +257,7 @@ export default function App() {
   // 99x GOD Luck logic: Adds 1,800,000 to CLICK power per tap
   const godLuckClickBonus = isGodLuckEventActive ? 1800000 : 0;
   
-  const totalMultiplier = petMultiplier * rebirthMultiplier * gamepassMultiplier * eventCurrencyMult * rankMultiplier;
+  const totalMultiplier = petMultiplier * rebirthMultiplier * gamepassMultiplier * eventCurrencyMult * rankMultiplier * islandMultiplier;
   
   const currentClickPower = Math.floor(gameState.clickPower * totalMultiplier) + godLuckClickBonus;
   const currentAutoPower = Math.floor(gameState.autoPower * totalMultiplier);
@@ -191,28 +277,39 @@ export default function App() {
 
   // Handle Main Click
   const handleClick = () => {
+    // Logic for Aura gain during Brainrot update
+    let auraGain = 0;
+    if (isUpdateLive) {
+        // Gain 1 aura per click base, scaled by rebirths? Keep it simple for now.
+        // 5% chance to get aura on click
+        if(Math.random() > 0.95) {
+            auraGain = 1 + Math.floor(gameState.rebirths / 5);
+        }
+    }
+
     setGameState(prev => ({
       ...prev,
       currency: prev.currency + currentClickPower,
-      totalClicks: prev.totalClicks + 1
+      totalClicks: prev.totalClicks + 1,
+      aura: prev.aura + auraGain
     }));
-    spawnFloatingText(currentClickPower);
+    
+    spawnFloatingText(currentClickPower, auraGain);
   };
 
-  const spawnFloatingText = (amount: number) => {
+  const spawnFloatingText = (amount: number, auraAmount: number = 0) => {
     const id = Date.now().toString() + Math.random();
     setNotifications(prev => [...prev, { id, text: `+${amount}`, color: 'text-green-400' }]);
+    
+    if (auraAmount > 0) {
+        const auraId = id + 'aura';
+        setNotifications(prev => [...prev, { id: auraId, text: `+${auraAmount} Aura`, color: 'text-purple-400' }]);
+        setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== auraId)), 800);
+    }
+
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 800);
-  };
-
-  const notify = (text: string, color: string = 'text-white') => {
-    const id = Date.now().toString() + Math.random();
-    setNotifications(prev => [...prev, { id, text, color }]);
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 3000);
   };
 
   const buyUpgrade = (upgradeId: string) => {
@@ -246,7 +343,7 @@ export default function App() {
     });
   };
 
-  const hatchEgg = async (tier: 'Basic' | 'Golden' | 'Diamond' | 'Winter', cost: number, currencyType: 'studs' | 'gems') => {
+  const hatchEgg = async (tier: 'Basic' | 'Golden' | 'Diamond' | 'Winter' | 'Brainrot' | 'Festive 2025', cost: number, currencyType: 'studs' | 'gems') => {
     const balance = currencyType === 'studs' ? gameState.currency : gameState.gems;
     
     if (balance < cost) {
@@ -272,10 +369,18 @@ export default function App() {
         id: Date.now().toString()
       };
 
-      setGameState(prev => ({
-        ...prev,
-        pets: [...prev.pets, newPet]
-      }));
+      setGameState(prev => {
+          // Check if pet is new for Index
+          const isNew = !prev.discoveredPets.some(p => p.name === newPet.name);
+          const newDiscovered = isNew ? [...prev.discoveredPets, newPet] : prev.discoveredPets;
+          if (isNew) notify("NEW PET DISCOVERED!", "text-cyan-400");
+
+          return {
+            ...prev,
+            pets: [...prev.pets, newPet],
+            discoveredPets: newDiscovered
+          };
+      });
 
       notify(`Hatched ${newPet.name} (${newPet.rarity})!`, "text-pink-400");
     } catch (e) {
@@ -329,26 +434,54 @@ export default function App() {
   };
 
   // --- NEW FEATURES ---
-  const handleLogin = (name: string, pass: string) => {
-    setGameState(prev => ({ ...prev, username: name, password: pass }));
+  const handleLogin = (name: string, pass: string, email?: string) => {
+    setGameState(prev => ({ ...prev, username: name, password: pass, email: email, isVerified: !!email }));
     notify(`Welcome back, ${name}!`);
   };
 
-  const handleAuthorize = () => {
-      if (authCode.toLowerCase() === 'admin' || authCode === 'owner123') {
-          setGameState(prev => ({ ...prev, isAdmin: true }));
-          notify("AUTHORIZATION GRANTED: Owner Mode Active", "text-red-500");
-          setAuthCode('');
-      } else {
-          notify("ACCESS DENIED: Invalid Key", "text-red-500");
-      }
+  const handleAuthorize = (key: string) => {
+      // Key Logic moved to AdminPanel, this is just the callback for success
+      // Automatically add OWNER tag
+      setGameState(prev => ({ 
+          ...prev, 
+          isAdmin: true,
+          tags: Array.from(new Set([...prev.tags, 'OWNER']))
+      }));
+      notify("AUTHORIZATION GRANTED: Owner Mode Active", "text-red-500");
   };
 
   const handleLogout = () => {
       if(window.confirm("Are you sure you want to log out?")) {
-        setGameState(prev => ({ ...prev, username: undefined, password: undefined, isAdmin: false }));
+        setGameState(prev => ({ ...prev, username: undefined, password: undefined, isAdmin: false, tags: [] }));
         window.location.reload();
       }
+  };
+
+  const handleTransfer = () => {
+      if(!transferTarget.trim()) return notify("Enter a username!", "text-red-500");
+      
+      if(window.confirm(`GIVE ACCOUNT TO ${transferTarget}?\n\nThis will transfer ALL your stats/pets/passes.\nYou will lose access to this account.\n\nAre you sure?`)) {
+          notify(`Transferring data to ${transferTarget}...`, "text-yellow-400");
+          // Simulate network delay
+          setTimeout(() => {
+              notify(`Transfer Successful! Logging out...`, "text-green-400");
+              setTimeout(() => {
+                  localStorage.removeItem(SAVE_KEY);
+                  window.location.reload();
+              }, 1500);
+          }, 1500);
+      }
+  }
+
+  const handleDownloadSave = () => {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(gameState));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", `blox_clicker_save_${Date.now()}.json`);
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+      notify("Save data downloaded!", "text-green-400");
   };
 
   const handleClaimAchievement = (id: string, reward: number) => {
@@ -358,6 +491,113 @@ export default function App() {
       claimedAchievementIds: [...prev.claimedAchievementIds, id]
     }));
     notify(`Achievement Claimed! +${reward} Gems`, "text-cyan-400");
+  };
+
+  // NEW: Boss Reward
+  const handleBossReward = (tokens: number) => {
+      setGameState(prev => ({ ...prev, tokens: prev.tokens + tokens }));
+      notify(`BOSS DEFEATED! +${tokens} Tokens`, "text-yellow-400");
+  }
+
+  // NEW: Travel
+  const handleTravel = (island: Island) => {
+      if (island.cost > 0 && gameState.currency < island.cost) {
+          notify("Not enough Studs to travel!", "text-red-500");
+          return;
+      }
+      
+      setGameState(prev => ({ ...prev, currentIslandId: island.id }));
+      notify(`Traveled to ${island.name}! (x${island.multiplier} Multiplier)`, "text-cyan-400");
+  }
+
+  // NEW: Buy Gems/Tags with Tokens
+  const handleBuyGemsWithTokens = (cost: number, amount: number) => {
+      if (gameState.tokens < cost) return notify("Not enough Tokens!", "text-red-500");
+      setGameState(prev => ({
+          ...prev,
+          tokens: prev.tokens - cost,
+          gems: prev.gems + amount
+      }));
+      notify(`Purchased ${amount.toLocaleString()} Gems!`, "text-green-400");
+  }
+
+  const handleBuyTag = (cost: number, tag: string) => {
+      if (gameState.tokens < cost) return notify("Not enough Tokens!", "text-red-500");
+      if (gameState.tags.includes(tag)) return notify("You already own this tag!", "text-red-500");
+      
+      setGameState(prev => ({
+          ...prev,
+          tokens: prev.tokens - cost,
+          tags: [...prev.tags, tag]
+      }));
+      notify(`Unlocked '${tag}' Tag!`, "text-purple-400");
+  }
+
+  // NEW: Lucky Block Logic
+  const handleOpenLuckyBlock = (blockId: string, cost: number, currencyType: 'studs' | 'gems' | 'tokens') => {
+      // Check Balance
+      if (currencyType === 'studs' && gameState.currency < cost) return notify("Not enough Studs!", "text-red-500");
+      if (currencyType === 'gems' && gameState.gems < cost) return notify("Not enough Gems!", "text-red-500");
+      if (currencyType === 'tokens' && gameState.tokens < cost) return notify("Not enough Tokens!", "text-red-500");
+
+      // Deduct Cost
+      setGameState(prev => ({
+          ...prev,
+          currency: currencyType === 'studs' ? prev.currency - cost : prev.currency,
+          gems: currencyType === 'gems' ? prev.gems - cost : prev.gems,
+          tokens: currencyType === 'tokens' ? prev.tokens - cost : prev.tokens,
+      }));
+
+      // Calculate Reward
+      let rewardText = '';
+      let rewardColor = 'text-white';
+      
+      // Random Logic (Simple)
+      const roll = Math.random();
+
+      if (blockId === 'christmas') {
+          const rewardAmount = Math.floor(5000 + (roll * 20000));
+          setGameState(prev => ({ ...prev, gems: prev.gems + rewardAmount }));
+          rewardText = `+${rewardAmount.toLocaleString()} Gems`;
+          rewardColor = 'text-green-400';
+      } else if (blockId === 'halloween') {
+          const rewardAmount = Math.floor(50 + (roll * 450));
+          setGameState(prev => ({ ...prev, tokens: prev.tokens + rewardAmount }));
+          rewardText = `+${rewardAmount} Tokens`;
+          rewardColor = 'text-orange-400';
+      } else if (blockId === 'summer') {
+          const rewardAmount = Math.floor(1000000 + (roll * 4000000));
+          setGameState(prev => ({ ...prev, currency: prev.currency + rewardAmount }));
+          rewardText = `+${(rewardAmount/1000000).toFixed(1)}M Studs`;
+          rewardColor = 'text-yellow-400';
+      } else if (blockId === 'lava') {
+          const rewardAmount = Math.floor(10000000 + (roll * 90000000));
+          setGameState(prev => ({ ...prev, currency: prev.currency + rewardAmount }));
+          rewardText = `+${(rewardAmount/1000000).toFixed(1)}M Studs`;
+          rewardColor = 'text-red-500';
+      } else if (blockId === 'owner') {
+          const gemReward = Math.floor(10000 + (roll * 40000));
+          const tokenReward = Math.floor(100 + (roll * 900));
+          setGameState(prev => ({ 
+              ...prev, 
+              gems: prev.gems + gemReward,
+              tokens: prev.tokens + tokenReward 
+          }));
+          rewardText = `+${gemReward.toLocaleString()} Gems & +${tokenReward} Tokens`;
+          rewardColor = 'text-cyan-400';
+      } else if (blockId === 'festive_2025') {
+          const gemReward = Math.floor(100000 + (roll * 200000));
+          const tokenReward = Math.floor(500 + (roll * 1000));
+          setGameState(prev => ({ 
+              ...prev, 
+              gems: prev.gems + gemReward,
+              tokens: prev.tokens + tokenReward 
+          }));
+          rewardText = `+${gemReward.toLocaleString()} Gems & +${tokenReward} Tokens`;
+          rewardColor = 'text-red-400';
+      }
+
+      notify(`LUCKY BLOCK OPENED: ${rewardText}`, rewardColor);
   };
 
   const addChatMessage = (msg: ChatMessage) => {
@@ -373,6 +613,12 @@ export default function App() {
       setGameState(prev => ({ ...prev, gems: prev.gems + amount }));
       notify(`ADMIN: Added ${amount} Gems`, "text-cyan-400");
   };
+  // NEW: Admin Token Function
+  const adminAddTokens = (amount: number) => {
+      setGameState(prev => ({ ...prev, tokens: prev.tokens + amount }));
+      notify(`ADMIN: Added ${amount} Tokens`, "text-yellow-400");
+  };
+
   const adminTriggerEvent = (eventData: Omit<GameEvent, 'id' | 'endTime'>) => {
       const newEvent: GameEvent = {
           ...eventData,
@@ -387,6 +633,7 @@ export default function App() {
   };
   const adminReset = () => {
       localStorage.removeItem(SAVE_KEY);
+      localStorage.removeItem('blox_update_timer');
       window.location.reload(); // Hard reload to clear everything including state
   };
   const adminAnnounce = (text: string) => {
@@ -404,15 +651,29 @@ export default function App() {
       notify("ANNOUNCEMENT SENT", "text-red-500");
   };
 
+  // Helper for admin to test brainrot
+  const adminForceUpdate = () => {
+      setUpdateTargetTime(Date.now() - 1000); // Set to past
+      notify("FORCE UPDATE: BRAINROT IS LIVE", "text-pink-500");
+  };
+
   // Dynamic Context string for AI Chat
   const activeEventNames = gameState.activeEvents.map(e => e.name).join(", ");
-  const chatContext = `User ${gameState.username || 'Guest'} is ${currentRank.name} rank. Active Events: ${activeEventNames || 'None'}. Winter Event is ACTIVE!`;
+  const chatContext = `User ${gameState.username || 'Guest'} is ${currentRank.name} rank. Active Events: ${activeEventNames || 'None'}. Winter Event is ACTIVE! Brainrot update is ${isUpdateLive ? 'LIVE' : 'Coming soon'}.`;
 
   return (
     <div className="min-h-screen bg-[#111] text-white font-sans selection:bg-blue-500 selection:text-white flex flex-col md:flex-row overflow-hidden relative">
       
+      {/* VISUAL EFFECTS OVERLAY */}
+      <EventEffects activeEvents={gameState.activeEvents} />
+
       {/* SNOW OVERLAY */}
       {snowflakes}
+
+      {/* BRAINROT OVERLAY (If Live) */}
+      {isUpdateLive && (
+          <div className="fixed inset-0 pointer-events-none z-[2] bg-purple-900/10 mix-blend-overlay animate-pulse"></div>
+      )}
       
       {/* GLOBAL ANNOUNCEMENT BANNER */}
       {announcement && (
@@ -457,6 +718,23 @@ export default function App() {
                             <div className="text-sm font-bold text-cyan-200">{gameState.gems.toLocaleString()}</div>
                         </div>
                     </div>
+                    <div className="bg-black/50 backdrop-blur rounded-lg p-2 px-3 border border-white/10 shadow-lg flex items-center gap-2">
+                        <Coins size={16} className="text-yellow-400" /> 
+                        <div>
+                            <div className="text-[10px] text-gray-400 uppercase leading-none">Tokens</div>
+                            <div className="text-sm font-bold text-yellow-200">{gameState.tokens.toLocaleString()}</div>
+                        </div>
+                    </div>
+                    {/* AURA DISPLAY - Only visible when update is live */}
+                    {isUpdateLive && (
+                        <div className="bg-purple-900/60 backdrop-blur rounded-lg p-2 px-3 border border-purple-500/50 shadow-lg flex items-center gap-2 animate-pulse">
+                            <Sparkles size={16} className="text-purple-300" /> 
+                            <div>
+                                <div className="text-[10px] text-purple-200 uppercase leading-none">Aura</div>
+                                <div className="text-sm font-bold text-white">{gameState.aura.toLocaleString()}</div>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 
                 {/* Active Events Display */}
@@ -472,9 +750,19 @@ export default function App() {
             </div>
             
             <div className="flex flex-col items-end gap-2 pointer-events-auto">
-                <div className="bg-black/50 backdrop-blur rounded px-3 py-1 border border-white/10 text-xs font-bold text-gray-400 flex items-center gap-2">
-                    {gameState.isAdmin && <Shield size={12} className="text-red-500" />}
-                    {gameState.username || 'Guest'}
+                <div className="bg-black/50 backdrop-blur rounded px-3 py-1 border border-white/10 text-xs font-bold text-gray-400 flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-2">
+                        {gameState.isAdmin && <Shield size={12} className="text-red-500" />}
+                        {gameState.username || 'Guest'}
+                    </div>
+                    {/* TAGS DISPLAY */}
+                    <div className="flex gap-1">
+                        {gameState.tags.map(tag => (
+                            <span key={tag} className={`text-[8px] px-1.5 rounded font-bold uppercase ${tag === 'OWNER' ? 'bg-red-500 text-white' : tag === 'Brainrot' ? 'bg-pink-500 text-white' : 'bg-green-500 text-black'}`}>
+                                {tag}
+                            </span>
+                        ))}
+                    </div>
                 </div>
                 <button 
                     onClick={doRebirth}
@@ -543,13 +831,20 @@ export default function App() {
             {[
                 { id: 'upgrades', icon: <ShoppingCart size={18}/>, label: 'Shop', color: 'blue' },
                 { id: 'pets', icon: <Zap size={18}/>, label: 'Pets', color: 'green' },
+                { id: 'index', icon: <Book size={18}/>, label: 'Index', color: 'cyan' }, // NEW INDEX TAB
                 { id: 'eggs', icon: <Award size={18}/>, label: 'Eggs', color: 'yellow' },
+                { id: 'luckyblocks', icon: <Box size={18}/>, label: 'Blocks', color: 'orange' }, 
+                { id: 'fight', icon: <Sword size={18}/>, label: 'Fight', color: 'red' }, 
+                { id: 'islands', icon: <Map size={18}/>, label: 'Islands', color: 'blue' }, 
+                { id: 'gameshop', icon: <Coins size={18}/>, label: 'Shop', color: 'yellow' }, 
                 { id: 'progress', icon: <ListTodo size={18}/>, label: 'Tasks', color: 'orange' },
                 { id: 'player', icon: <User size={18}/>, label: 'Stats', color: 'purple' },
+                { id: 'leaderboard', icon: <BarChart3 size={18}/>, label: 'Rank', color: 'yellow' },
                 { id: 'gamepasses', icon: <Gem size={18}/>, label: 'Store', color: 'pink' },
+                { id: 'updates', icon: <Bell size={18}/>, label: 'Updates', color: 'red' }, 
                 { id: 'chat', icon: <MessageSquare size={18}/>, label: 'Chat', color: 'gray' },
                 { id: 'settings', icon: <Settings size={18}/>, label: 'Settings', color: 'gray' },
-                ...(gameState.isAdmin ? [{ id: 'admin', icon: <Shield size={18}/>, label: 'Owner', color: 'red' }] : []), // Conditional Admin Tab
+                { id: 'admin', icon: <Shield size={18}/>, label: 'Owner', color: 'red' },
             ].map((tab) => (
                 <button 
                     key={tab.id}
@@ -575,20 +870,25 @@ export default function App() {
                     {gameState.upgrades.map(upgrade => {
                          const cost = Math.floor(upgrade.baseCost * Math.pow(upgrade.costMultiplier, upgrade.count));
                          const canAfford = gameState.currency >= cost;
+                         // Highlight new Limited upgrade
+                         const isLimited = upgrade.id === 'click_limited';
+                         const isNew = upgrade.id === 'click_sigma';
 
                          return (
                              <button 
                                 key={upgrade.id}
                                 onClick={() => buyUpgrade(upgrade.id)}
                                 disabled={!canAfford}
-                                className={`w-full flex items-center p-3 rounded-lg border-2 transition-all group ${canAfford ? 'bg-white/5 border-white/10 hover:border-blue-500 hover:bg-blue-900/10' : 'bg-red-900/10 border-red-900/30 opacity-60 cursor-not-allowed'}`}
+                                className={`w-full flex items-center p-3 rounded-lg border-2 transition-all group ${canAfford ? 'bg-white/5 border-white/10 hover:border-blue-500 hover:bg-blue-900/10' : 'bg-red-900/10 border-red-900/30 opacity-60 cursor-not-allowed'} ${isLimited ? 'border-yellow-500/50 bg-yellow-900/10' : ''} ${isNew ? 'border-purple-500/50 bg-purple-900/10' : ''}`}
                              >
-                                 <div className="w-10 h-10 bg-black/40 rounded flex items-center justify-center text-xl mr-3 border border-white/5 group-hover:scale-110 transition-transform">
+                                 <div className="w-10 h-10 bg-black/40 rounded flex items-center justify-center text-xl mr-3 border border-white/5 group-hover:scale-110 transition-transform relative">
                                     {upgrade.icon}
+                                    {isLimited && <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[8px] px-1 rounded font-bold animate-pulse">LTD</div>}
+                                    {isNew && <div className="absolute -top-2 -right-2 bg-purple-600 text-white text-[8px] px-1 rounded font-bold animate-pulse">NEW</div>}
                                  </div>
                                  <div className="flex-1 text-left">
                                      <div className="font-bold text-sm text-gray-200">{upgrade.name}</div>
-                                     <div className="text-xs text-blue-400 font-mono">+{upgrade.powerIncrease} {upgrade.type === 'click' ? 'Click' : 'Auto'} Power</div>
+                                     <div className="text-xs text-blue-400 font-mono">+{upgrade.powerIncrease.toLocaleString()} {upgrade.type === 'click' ? 'Click' : 'Auto'} Power</div>
                                  </div>
                                  <div className="text-right">
                                      <div className={`font-bold font-game ${canAfford ? 'text-yellow-400' : 'text-red-400'}`}>{cost.toLocaleString()}</div>
@@ -623,11 +923,35 @@ export default function App() {
                 </div>
             )}
 
+            {/* INDEX TAB */}
+            {activeTab === 'index' && (
+                <PetIndex discoveredPets={gameState.discoveredPets} aura={gameState.aura} />
+            )}
+
             {/* EGGS TAB */}
             {activeTab === 'eggs' && (
                 <div className="space-y-4 animate-fade-in">
                     <h3 className="font-game text-gray-400 uppercase text-xs tracking-wider mb-2">Hatch New Pets</h3>
                     
+                    {/* FESTIVE 2025 EGG */}
+                    <button
+                        onClick={() => hatchEgg('Festive 2025', 1000000, 'gems')}
+                        disabled={isHatching || gameState.gems < 1000000}
+                        className={`w-full relative p-4 rounded-xl border-b-4 bg-gradient-to-r from-red-900 to-green-900 border-red-500 transition-all active:border-b-0 active:translate-y-1 hover:brightness-110 overflow-hidden group text-left shadow-[0_0_20px_rgba(239,68,68,0.4)]`}
+                    >
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/snow.png')] opacity-30"></div>
+                        <div className="absolute top-0 right-0 p-2 opacity-30 text-6xl group-hover:scale-125 transition-transform duration-500 rotate-12">🎁</div>
+                        <div className="relative z-10 flex flex-col items-start">
+                            <div className="font-game font-bold text-xl text-white drop-shadow-md flex items-center gap-2">
+                                Festive 2025 Egg <span className="text-[10px] bg-red-600 text-white px-1 rounded uppercase animate-pulse">New</span>
+                            </div>
+                            <div className="text-sm text-gray-200/80 mb-2">Exclusive Holiday Pets & Santas!</div>
+                            <div className="bg-black/40 px-3 py-1 rounded-full text-red-300 font-bold font-mono text-sm border border-red-500/30 flex items-center gap-1">
+                                <Gem size={12} /> 1,000,000 Gems
+                            </div>
+                        </div>
+                    </button>
+
                     {/* WINTER EGG */}
                     <button
                         onClick={() => hatchEgg('Winter', 5000, 'gems')}
@@ -643,6 +967,24 @@ export default function App() {
                             <div className="text-sm text-cyan-100/80 mb-2">Limited time! Ice & Snow pets.</div>
                             <div className="bg-black/40 px-3 py-1 rounded-full text-cyan-300 font-bold font-mono text-sm border border-cyan-500/30 flex items-center gap-1">
                                 <Gem size={12} /> 5,000 Gems
+                            </div>
+                        </div>
+                    </button>
+
+                    {/* BRAINROT EGG */}
+                    <button
+                        onClick={() => hatchEgg('Brainrot', 25000, 'gems')}
+                        disabled={isHatching || gameState.gems < 25000}
+                        className={`w-full relative p-4 rounded-xl border-b-4 bg-purple-900 border-purple-500 transition-all active:border-b-0 active:translate-y-1 hover:brightness-110 overflow-hidden group text-left shadow-[0_0_20px_rgba(168,85,247,0.2)]`}
+                    >
+                        <div className="absolute top-0 right-0 p-2 opacity-30 text-6xl group-hover:scale-125 transition-transform duration-500 -rotate-12 animate-pulse">🚽</div>
+                        <div className="relative z-10 flex flex-col items-start">
+                            <div className="font-game font-bold text-xl text-purple-200 drop-shadow-md flex items-center gap-2">
+                                Brainrot Egg <span className="text-[10px] bg-purple-500 text-black px-1 rounded uppercase">New</span>
+                            </div>
+                            <div className="text-sm text-purple-100/80 mb-2">Skibidi, Sigma, and Rizz pets!</div>
+                            <div className="bg-black/40 px-3 py-1 rounded-full text-purple-300 font-bold font-mono text-sm border border-purple-500/30 flex items-center gap-1">
+                                <Gem size={12} /> 25,000 Gems
                             </div>
                         </div>
                     </button>
@@ -677,6 +1019,56 @@ export default function App() {
                 </div>
             )}
 
+            {/* LUCKY BLOCKS TAB */}
+            {activeTab === 'luckyblocks' && (
+                <LuckyBlockTab 
+                    currency={gameState.currency}
+                    gems={gameState.gems}
+                    tokens={gameState.tokens}
+                    onOpen={handleOpenLuckyBlock}
+                    isUpdateLive={isUpdateLive}
+                    timeString={formatTime(timeRemaining)}
+                />
+            )}
+
+            {/* FIGHT TAB */}
+            {activeTab === 'fight' && (
+                <div className="animate-fade-in">
+                    <BossFight 
+                        clickPower={currentClickPower} 
+                        onReward={handleBossReward}
+                    />
+                </div>
+            )}
+
+            {/* ISLANDS TAB */}
+            {activeTab === 'islands' && (
+                <div className="animate-fade-in">
+                    <IslandSelector 
+                        currentIslandId={gameState.currentIslandId}
+                        unlockedIslands={[]} 
+                        currency={gameState.currency}
+                        onTravel={handleTravel}
+                        isUpdateLive={isUpdateLive}
+                    />
+                </div>
+            )}
+
+            {/* UPDATES TAB */}
+            {activeTab === 'updates' && (
+                <UpdateLog timeLeft={timeRemaining} />
+            )}
+
+            {/* TOKEN SHOP TAB */}
+            {activeTab === 'gameshop' && (
+                <TokenShop 
+                    tokens={gameState.tokens} 
+                    onBuyGems={handleBuyGemsWithTokens}
+                    onBuyTag={handleBuyTag}
+                    ownedTags={gameState.tags}
+                />
+            )}
+
             {/* PROGRESS TAB */}
             {activeTab === 'progress' && (
                 <div className="animate-fade-in">
@@ -688,6 +1080,18 @@ export default function App() {
             {activeTab === 'player' && (
                 <div className="animate-fade-in">
                     <PlayerStats gameState={gameState} currentRank={currentRank} nextRank={nextRank} />
+                </div>
+            )}
+
+             {/* LEADERBOARD TAB */}
+             {activeTab === 'leaderboard' && (
+                <div className="animate-fade-in">
+                    <Leaderboard 
+                        currentUsername={gameState.username} 
+                        currentClicks={gameState.totalClicks}
+                        currentGems={gameState.gems}
+                        currentStuds={gameState.currency}
+                    />
                 </div>
             )}
 
@@ -720,7 +1124,10 @@ export default function App() {
                         <div className="flex justify-between items-center bg-black/40 p-3 rounded-lg mb-4">
                             <div>
                                 <div className="text-xs text-gray-500 uppercase">Logged in as</div>
-                                <div className="font-bold text-white">{gameState.username}</div>
+                                <div className="font-bold text-white flex gap-2 items-center">
+                                    {gameState.username}
+                                    {gameState.isVerified && <span className="bg-green-500 text-black text-[9px] px-1 rounded font-bold">VERIFIED</span>}
+                                </div>
                             </div>
                             <button 
                                 onClick={handleLogout}
@@ -731,50 +1138,84 @@ export default function App() {
                         </div>
                     </div>
 
+                    {/* App Install Section */}
                     <div className="bg-white/5 p-4 rounded-xl border border-white/10">
                         <h3 className="font-game text-gray-200 font-bold mb-1 flex items-center gap-2">
-                            <Key size={18} /> Authorization
+                            <Download size={18} /> Install App
                         </h3>
-                        <p className="text-xs text-gray-500 mb-4">Enter key to take control of this account.</p>
+                        <p className="text-xs text-gray-500 mb-4">Install for a better experience and offline access.</p>
+
+                        <button 
+                            onClick={handleInstallApp}
+                            disabled={!installPrompt}
+                            className={`w-full p-3 rounded-lg font-bold text-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2 
+                            ${installPrompt ? 'bg-green-600 hover:bg-green-500 text-white border-green-800' : 'bg-gray-700 text-gray-400 border-gray-900 cursor-not-allowed'}`}
+                        >
+                            <Download size={16} /> {installPrompt ? 'INSTALL APP' : 'APP INSTALLED / NOT SUPPORTED'}
+                        </button>
+                    </div>
+
+                    {/* Data Management Section */}
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                        <h3 className="font-game text-gray-200 font-bold mb-1 flex items-center gap-2">
+                            <Save size={18} /> Data Management
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-4">Backup your progress locally.</p>
+
+                        <button 
+                            onClick={handleDownloadSave}
+                            className="w-full bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-lg font-bold text-sm border-b-4 border-blue-800 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Download size={16} /> Download Save Data
+                        </button>
+                    </div>
+
+                    {/* Give Account Section */}
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                        <h3 className="font-game text-gray-200 font-bold mb-1 flex items-center gap-2">
+                            <Gift size={18} /> Give Account
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-4">Transfer ownership of this account to someone else.</p>
                         
-                        {gameState.isAdmin ? (
-                            <div className="bg-green-900/20 border border-green-500/30 p-3 rounded-lg text-green-400 text-sm font-bold text-center">
-                                ACCESS GRANTED
-                            </div>
-                        ) : (
-                            <div className="flex gap-2">
-                                <input 
-                                    type="password" 
-                                    value={authCode}
-                                    onChange={(e) => setAuthCode(e.target.value)}
-                                    placeholder="Enter Admin Key..."
-                                    className="flex-1 bg-black/40 border border-white/10 rounded p-2 text-white text-sm"
-                                />
-                                <button 
-                                    onClick={handleAuthorize}
-                                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-xs"
-                                >
-                                    AUTHORIZE
-                                </button>
-                            </div>
-                        )}
+                        <div className="flex gap-2">
+                            <input 
+                                type="text" 
+                                value={transferTarget}
+                                onChange={(e) => setTransferTarget(e.target.value)}
+                                placeholder="Enter Recipient Username..."
+                                className="flex-1 bg-black/40 border border-white/10 rounded p-2 text-white text-sm font-mono"
+                            />
+                            <button 
+                                onClick={handleTransfer}
+                                className="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-lg font-bold text-xs border-b-2 border-orange-800 active:border-b-0 active:translate-y-[2px] transition-all"
+                            >
+                                TRANSFER
+                            </button>
+                        </div>
+                        <p className="text-[10px] text-red-500 mt-2 font-bold opacity-80 uppercase tracking-wide">
+                            ⚠️ Warning: You will lose all progress
+                        </p>
                     </div>
 
                     <div className="text-center text-[10px] text-gray-600 mt-8">
-                        Blox Clicker Simulator Security v2.0
+                        Blox Clicker Simulator Security v2.1 • Owner Panel • Powered by Gemini
                     </div>
                 </div>
             )}
 
             {/* ADMIN TAB */}
-            {activeTab === 'admin' && gameState.isAdmin && (
+            {activeTab === 'admin' && (
                 <div className="animate-fade-in">
                     <AdminPanel 
+                        isAdmin={gameState.isAdmin || false}
+                        onAuthorize={handleAuthorize}
                         onAddCurrency={adminAddCurrency} 
                         onAddGems={adminAddGems} 
+                        onAddTokens={adminAddTokens}
                         onTriggerEvent={adminTriggerEvent}
                         onReset={adminReset} 
                         onAnnounce={adminAnnounce}
+                        onForceUpdate={adminForceUpdate} // NEW PROP
                     />
                 </div>
             )}
@@ -783,7 +1224,7 @@ export default function App() {
          
          {/* Footer Info */}
          <div className="p-3 bg-black/20 text-[10px] text-gray-600 text-center border-t border-white/5 flex justify-center items-center gap-2">
-             <span>Blox Clicker Sim v1.6 (Owner Panel) • Powered by Google Gemini</span>
+             <span>Blox Clicker Sim v2.1 (Owner Panel) • Powered by Google Gemini</span>
              <span className="text-green-500/50 flex items-center gap-1"><Save size={8} /> Autosave On</span>
          </div>
       </div>

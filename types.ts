@@ -1,9 +1,11 @@
+
 export enum Rarity {
   COMMON = 'Common',
   UNCOMMON = 'Uncommon',
   RARE = 'Rare',
   EPIC = 'Epic',
   LEGENDARY = 'Legendary',
+  ULTRA_RARE = 'Ultra Rare',
   MYTHICAL = 'Mythical'
 }
 
@@ -32,7 +34,7 @@ export interface ChatMessage {
   user: string;
   text: string;
   isSystem?: boolean;
-  role?: 'player' | 'admin' | 'vip';
+  role?: 'player' | 'admin' | 'vip' | 'owner';
 }
 
 export interface GamePasses {
@@ -59,16 +61,32 @@ export interface RankDefinition {
   color: string;
 }
 
+export interface Island {
+  id: string;
+  name: string;
+  multiplier: number;
+  cost: number; // In Studs
+  color: string;
+  image: string;
+}
+
 export interface GameState {
   username?: string;
-  password?: string; // Added password field
-  isAdmin?: boolean; // Added admin authorization status
+  password?: string;
+  email?: string;
+  isVerified?: boolean;
+  isAdmin?: boolean;
+  tags: string[]; 
   currency: number;
   gems: number;
+  tokens: number;
+  aura: number; // New Currency for Brainrot Update
   rebirths: number;
   clickPower: number;
   autoPower: number;
+  currentIslandId: string;
   pets: Pet[];
+  discoveredPets: Pet[]; // New: For the Index
   upgrades: Upgrade[];
   totalClicks: number;
   gamepasses: GamePasses;

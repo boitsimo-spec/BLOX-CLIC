@@ -47,7 +47,7 @@ export const generateChatMessages = async (context: string): Promise<{ user: str
 };
 
 export const generatePet = async (
-    eggTier: 'Basic' | 'Golden' | 'Diamond' | 'Winter', 
+    eggTier: 'Basic' | 'Golden' | 'Diamond' | 'Winter' | 'Brainrot' | 'Festive 2025', 
     luckMultiplier: number = 1
 ): Promise<Omit<Pet, 'id'>> => {
   try {
@@ -55,12 +55,14 @@ export const generatePet = async (
     switch (eggTier) {
       case 'Basic': tierPrompt = "Basic eggs give Common/Uncommon pets."; break;
       case 'Golden': tierPrompt = "Golden eggs give Rare/Epic pets."; break;
-      case 'Diamond': tierPrompt = "Diamond eggs give Legendary/Mythical pets."; break;
-      case 'Winter': tierPrompt = "Winter eggs give Ice, Snow, Holiday, or Frozen themed pets. High chance for Legendaries."; break;
+      case 'Diamond': tierPrompt = "Diamond eggs give Legendary/Ultra Rare/Mythical pets."; break;
+      case 'Winter': tierPrompt = "Winter eggs give Ice, Snow, Holiday, or Frozen themed pets. High chance for Legendaries and Ultra Rares."; break;
+      case 'Brainrot': tierPrompt = "Brainrot eggs give Gen Alpha meme pets. You MUST generate one of the following specific pets with high probability: 'Rizz', '67', 'Skibidi Toilet', 'Come', 'Aura'. You can also generate variations like 'Golden Skibidi' or 'Dark Aura'. High chance for Mythical and Ultra Rare."; break;
+      case 'Festive 2025': tierPrompt = "Festive 2025 eggs give EXCLUSIVE Holiday pets. Generate pets like 'Santa Claus', 'Rudolph', 'Elf on Shelf', 'Gingerbread Giant', 'Krampus', or 'Neon Present'. High chance for Mythical. Use emojis like 🎅, 🦌, 🎄, 🎁."; break;
     }
 
     const luckPrompt = luckMultiplier > 1 
-        ? `The player has ${luckMultiplier.toFixed(1)}x LUCK active! DRAMATICALLY INCREASE the chance of Legendary and Mythical pets. Ignore normal tier restrictions if luck is high. If luck is > 20, consider adding prefixes like 'Mutated', 'Shiny', 'Radioactive', or 'Ghost' to the name.` 
+        ? `The player has ${luckMultiplier.toFixed(1)}x LUCK active! DRAMATICALLY INCREASE the chance of Legendary, Ultra Rare, and Mythical pets. Ignore normal tier restrictions if luck is high. If luck is > 20, consider adding prefixes like 'Mutated', 'Shiny', 'Radioactive', or 'Ghost' to the name.` 
         : "";
 
     const prompt = `Generate a unique, creative pet for a Roblox Simulator game. 
@@ -70,7 +72,7 @@ export const generatePet = async (
     
     Return a JSON object with:
     - name: Creative name (e.g., "Neon Dragon", "Glitch Cat", "Frost Wolf", "Santa Dog")
-    - rarity: One of [Common, Uncommon, Rare, Epic, Legendary, Mythical] based on tier and luck.
+    - rarity: One of [Common, Uncommon, Rare, Epic, Legendary, Ultra Rare, Mythical] based on tier and luck.
     - multiplier: A number between 1.2 and 50.0 based on rarity.
     - emoji: A single emoji representing the pet.
     - description: A funny or cool 1-sentence description.`;
